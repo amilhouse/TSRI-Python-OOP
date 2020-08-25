@@ -68,7 +68,7 @@ class Circle(Shape):
         beta, _ = curve_fit(gau2d_circle, coord, img.ravel())
         self.x = beta[1]
         self.y = beta[2]
-        self.r = np.abs(beta[3])*2
+        self.r = np.abs(beta[3])*1.5
 
 
 
