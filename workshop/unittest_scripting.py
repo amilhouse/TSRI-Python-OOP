@@ -17,10 +17,11 @@ f.correct_background(show=True)
 
 f.add_cell([656, 693, 641, 676])
 c = f[0]
-c.fit_punctum([28, 26])
+c.add_punctum([28, 26])
+c.fit_punctum()
 
 f.add_cell([560, 585, 486, 518])
-f[1].fit_punctum([9, 7], isTesting=False)
+# f[1].fit_punctum([9, 7], isTesting=False)
 f.add_cell([964, 994, 251, 271])
-f[2].fit_punctum([9, 12], isTesting=False)
+# f[2].fit_punctum([9, 12], isTesting=False)
 print(f)

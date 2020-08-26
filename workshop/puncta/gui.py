@@ -25,6 +25,8 @@ class PunctaController(QtCore.QObject):
     fileSelected = QtCore.pyqtSignal(object)
     fovLoaded = QtCore.pyqtSignal(object)
     cellSelected = QtCore.pyqtSignal(list)
+    punctumSelected = QtCore.pyqtSignal(object)
+    cellUpdated = QtCore.pyqtSignal(object)
 
     def __init__(self):
         super().__init__()
@@ -33,6 +35,7 @@ class PunctaController(QtCore.QObject):
 
         self.fileSelected.connect(self.open_image)
         self.cellSelected.connect(self.add_cell)
+        self.punctumSelected.connect(self.add_punctum)
 
     def set_index(self, val):
         self.index = val
@@ -46,6 +49,10 @@ class PunctaController(QtCore.QObject):
     def add_cell(self, coords):
         self.fov.add_cell(coords)
         self.set_index(len(self.fov)-1)
+
+    def add_punctum(self, coords):
+        self.fov[self.index].add_punctum(coords)
+        self.cellUpdated.emit(self.fov[self.index])
 
 
 
@@ -99,6 +106,7 @@ class PunctaPickerCanvas(FigureCanvas):
     def connect(self):
         self.controller.fovLoaded.connect(self.on_load_fov)
         self.controller.indexChanged.connect(self.on_change_cell)
+        self.controller.cellUpdated.connect(self.on_change_cell)
         self.mpl_connect('button_release_event', self.on_release)
 
         rectProps = {"alpha": 0.5, "facecolor": "#E5FF00"}
@@ -119,9 +127,7 @@ class PunctaPickerCanvas(FigureCanvas):
 
     def on_release(self, evt):
         if evt.inaxes == self.axCell:
-            print("cell")
-        elif evt.inaxes == self.axFOV and evt.button == 3:
-            print("reset")
+            self.controller.punctumSelected.emit([evt.xdata, evt.ydata])
 
 # ==============================================================================
 # widgets

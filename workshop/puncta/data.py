@@ -101,7 +101,7 @@ class Cell():
         x, y = initCoords
         self.punctum = Circle(x, y, r=r)
 
-    def fit_punctum(self, initCoords, r=2, show=False, isTesting=True):
+    def fit_punctum(self, show=False, isTesting=True):
         if isTesting:
             plt.imshow(self.img, cmap="afmhot")
             plt.show()
@@ -111,7 +111,9 @@ class Cell():
             plt.imshow(img0, cmap="afmhot")
             plt.show()
         # crop upsampled image near initial point
-        initCoords = np.array(initCoords, dtype=np.int)*3
+        # initCoords = np.array(initCoords, dtype=np.int)*3
+        initCoords = np.array([self.punctum.x, self.punctum.y], dtype=np.int)*3
+        r = self.punctum.r
         ylim = slice(initCoords[0]-20, initCoords[0]+20)
         xlim = slice(initCoords[1]-20, initCoords[1]+20)
         i = img0[xlim, ylim]
