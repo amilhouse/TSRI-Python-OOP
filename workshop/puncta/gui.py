@@ -21,17 +21,32 @@ from . import FOV
 # ==============================================================================
 class PunctaController(QtCore.QObject):
 
+    indexChanged = QtCore.pyqtSignal(object)
     fileSelected = QtCore.pyqtSignal(object)
+    fovLoaded = QtCore.pyqtSignal(object)
+    cellSelected = QtCore.pyqtSignal(list)
 
     def __init__(self):
         super().__init__()
         self.fov = None
+        self.index = None
 
         self.fileSelected.connect(self.open_image)
+        self.cellSelected.connect(self.add_cell)
+
+    def set_index(self, val):
+        self.index = val
+        self.indexChanged.emit(self.fov[self.index])
 
     def open_image(self, filename):
         self.fov = FOV.read_image(filename)
-        print(self.fov)
+        self.fov.correct_background(show=False)
+        self.fovLoaded.emit(self.fov)
+
+    def add_cell(self, coords):
+        self.fov.add_cell(coords)
+        self.set_index(len(self.fov)-1)
+
 
 
 
@@ -46,12 +61,22 @@ class FOVAxes(mpl.axes.Axes):
         super().__init__(*args, **kwargs)
         # self.axis('off')
 
+    def plot(self, fov):
+        self.imshow(fov.img, cmap="afmhot")
+
 class CellAxes(mpl.axes.Axes):
     name = "cell"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # self.axis('off')
+
+    def plot(self, cell):
+        self.imshow(cell.img, cmap="afmhot")
+        try:
+            super().plot(*cell.punctum.get_draw_coords(), c='c')
+        except AttributeError:
+            pass
 
 mpl.projections.register_projection(FOVAxes)
 mpl.projections.register_projection(CellAxes)
@@ -72,17 +97,25 @@ class PunctaPickerCanvas(FigureCanvas):
         self.axCell = self.fig.add_subplot(gs[1], projection="cell")
 
     def connect(self):
+        self.controller.fovLoaded.connect(self.on_load_fov)
+        self.controller.indexChanged.connect(self.on_change_cell)
         self.mpl_connect('button_release_event', self.on_release)
 
         rectProps = {"alpha": 0.5, "facecolor": "#E5FF00"}
         spanArgs = {"useblit": True, "button": 1, "rectprops": rectProps}
         self.zoomSpan = RectangleSelector(self.axFOV, self.on_zoom, **spanArgs)
 
-    def on_zoom(self, eclick, erelease):
-        # "eclick and erelease are matplotlib events at press and release."
-        # print('startposition: (%f, %f)' % (eclick.xdata, eclick.ydata))
-        # print('endposition  : (%f, %f)' % (erelease.xdata, erelease.ydata))
-        pass
+    def on_load_fov(self, fov):
+        self.axFOV.plot(fov)
+        self.draw()
+
+    def on_change_cell(self, cell):
+        self.axCell.cla()
+        self.axCell.plot(cell)
+        self.draw()
+
+    def on_zoom(self, evt1, evt2):
+        self.controller.cellSelected.emit([int(evt1.xdata), int(evt2.xdata), int(evt1.ydata), int(evt2.ydata)])
 
     def on_release(self, evt):
         if evt.inaxes == self.axCell:
