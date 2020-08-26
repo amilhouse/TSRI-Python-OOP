@@ -25,8 +25,10 @@ class PunctaController(QtCore.QObject):
     fileSelected = QtCore.pyqtSignal(object)
     fovLoaded = QtCore.pyqtSignal(object)
     cellSelected = QtCore.pyqtSignal(list)
+    lengthChanged = QtCore.pyqtSignal(int)
     punctumSelected = QtCore.pyqtSignal(object)
     cellUpdated = QtCore.pyqtSignal(object)
+    doFitPunctum = QtCore.pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -36,6 +38,7 @@ class PunctaController(QtCore.QObject):
         self.fileSelected.connect(self.open_image)
         self.cellSelected.connect(self.add_cell)
         self.punctumSelected.connect(self.add_punctum)
+        self.doFitPunctum.connect(self.fit_punctum)
 
     def set_index(self, val):
         self.index = val
@@ -48,10 +51,15 @@ class PunctaController(QtCore.QObject):
 
     def add_cell(self, coords):
         self.fov.add_cell(coords)
+        self.lengthChanged.emit(len(self.fov))
         self.set_index(len(self.fov)-1)
 
     def add_punctum(self, coords):
         self.fov[self.index].add_punctum(coords)
+        self.cellUpdated.emit(self.fov[self.index])
+
+    def fit_punctum(self):
+        self.fov[self.index].fit_punctum(isTesting=False)
         self.cellUpdated.emit(self.fov[self.index])
 
 
@@ -66,7 +74,7 @@ class FOVAxes(mpl.axes.Axes):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # self.axis('off')
+        self.axis('off')
 
     def plot(self, fov):
         self.imshow(fov.img, cmap="afmhot")
@@ -76,14 +84,16 @@ class CellAxes(mpl.axes.Axes):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # self.axis('off')
+        self.axis('off')
 
     def plot(self, cell):
+        self.cla()
         self.imshow(cell.img, cmap="afmhot")
         try:
             super().plot(*cell.punctum.get_draw_coords(), c='c')
         except AttributeError:
             pass
+        self.axis('off')
 
 mpl.projections.register_projection(FOVAxes)
 mpl.projections.register_projection(CellAxes)
@@ -118,7 +128,7 @@ class PunctaPickerCanvas(FigureCanvas):
         self.draw()
 
     def on_change_cell(self, cell):
-        self.axCell.cla()
+        # self.axCell.cla()
         self.axCell.plot(cell)
         self.draw()
 
@@ -153,6 +163,20 @@ class CellSlider(QtWidgets.QSlider):
     def __init__(self, controller, **kwargs):
         self.controller = controller
         super().__init__(orientation=QtCore.Qt.Horizontal, **kwargs)
+        self.controller.lengthChanged.connect(self.set_max)
+        self.controller.indexChanged.connect(self.set_value)
+        self.valueChanged.connect(self.set_index)
+
+    def set_max(self, m):
+        self.setMinimum(1)
+        self.setMaximum(m)
+
+    def set_value(self, cell):
+        v = self.controller.index+1
+        self.setValue(v)
+
+    def set_index(self, i):
+        self.controller.set_index(i-1)
 
 
 class CellIdLabel(QtWidgets.QLabel):
@@ -162,6 +186,11 @@ class CellIdLabel(QtWidgets.QLabel):
         self.controller = controller
         super().__init__(self.lbl, **kwargs)
         self.setMinimumWidth(200)
+        self.controller.indexChanged.connect(self.update_label)
+
+    def update_label(self, cell):
+        s = self.lbl + str(cell._id)
+        self.setText(s)
 
 
 class FitButton(QtWidgets.QPushButton):
@@ -169,3 +198,4 @@ class FitButton(QtWidgets.QPushButton):
     def __init__(self, controller, **kwargs):
         self.controller = controller
         super().__init__("Find Punctum", **kwargs)
+        self.clicked.connect(self.controller.doFitPunctum.emit)
