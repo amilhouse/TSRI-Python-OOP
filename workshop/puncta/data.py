@@ -97,7 +97,11 @@ class Cell():
         y1, y2, x1, x2 = self._coords
         return self._parent.img[x1:x2, y1:y2]
 
-    def add_punctum(self, initCoords, r=2, show=False, isTesting=True):
+    def add_punctum(self, initCoords, r=2):
+        x, y = initCoords
+        self.punctum = Circle(x, y, r=r)
+
+    def fit_punctum(self, initCoords, r=2, show=False, isTesting=True):
         if isTesting:
             plt.imshow(self.img, cmap="afmhot")
             plt.show()
