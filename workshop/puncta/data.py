@@ -6,6 +6,7 @@ puncta >> data
 import numpy as np
 from scipy import ndimage
 from datetime import datetime
+import h5py, json
 
 from skimage import io, filters
 from skimage import img_as_float
@@ -17,12 +18,21 @@ from . import Circle
 
 class FOV():
 
-    def __init__(self, img):
-        self._id = hex(int(datetime.now().timestamp()))
+    def __init__(self, img, corrImg=None, id_=None, cells=None):
+        if id_ is None:
+            self._id = hex(int(datetime.now().timestamp()))
+        else:
+            self._id = id_
         self._img = img
-        self.img = img
-        self._regions = None
-        self._cells = []
+        if corrImg is None:
+            self.img = img
+        else:
+            self.img = corrImg
+        # self._regions = None
+        if cells is None:
+            self._cells = []
+        else:
+            self._cells = cells
 
     def __getitem__(self, index):
         return self._cells[index]
@@ -40,7 +50,31 @@ class FOV():
     @classmethod
     def read_image(cls, filename):
         img = io.imread(filename, as_gray=True)
-        return cls(img)
+        id_ = hex(int(datetime.now().timestamp()))
+        return cls(img, id_)
+
+    @classmethod
+    def load(cls, filename):
+        with h5py.File(filename, "r") as HF:
+            id_ = HF.attrs["id"]
+            data = HF["FOV"]
+            corrImg = data[:,:,0]
+            img = data[:,:,1]
+            fov = cls(img, corrImg=corrImg, id_=id_, cells=None)
+            cells = []
+            for key, item in HF["cells"].attrs.items():
+                cells.append(Cell.from_json(fov, key, item))
+            fov._cells = cells
+            return fov
+
+    def save(self, filename):
+        with h5py.File(filename, "w") as HF:
+            HF.attrs["id"] = self._id
+            data = np.stack((self.img, self._img), axis=2)
+            HF.create_dataset("FOV", data=data, compression="gzip")
+            group = HF.create_group("cells")
+            for cell in self:
+                group.attrs[str(cell._id)] = cell.as_json()
 
     def correct_background(self, show=False):
         """ https://bit.ly/3li6ity """
@@ -63,34 +97,55 @@ class FOV():
             ax2.axis('off')
             plt.show()
 
-    def threshhold(self, show=False):
-        """ https://bit.ly/2FUW3eI """
-        thresholds = filters.threshold_multiotsu(self.img, classes=3)
-        self._regions = np.digitize(self.img, bins=thresholds)
-
-        if show:
-            ax1 = plt.subplot(1, 2, 1)
-            ax1.imshow(self.img, cmap="bone")
-            ax1.set_title('Original')
-            ax1.axis('off')
-            ax2 = plt.subplot(1, 2, 2, sharex=ax1, sharey=ax1)
-            ax2.imshow(self._regions, cmap="bone")
-            ax2.set_title('Multi-Otsu thresholding')
-            ax2.axis('off')
-            plt.show()
+    # def threshhold(self, show=False):
+    #     """ https://bit.ly/2FUW3eI """
+    #     thresholds = filters.threshold_multiotsu(self.img, classes=3)
+    #     self._regions = np.digitize(self.img, bins=thresholds)
+    #
+    #     if show:
+    #         ax1 = plt.subplot(1, 2, 1)
+    #         ax1.imshow(self.img, cmap="bone")
+    #         ax1.set_title('Original')
+    #         ax1.axis('off')
+    #         ax2 = plt.subplot(1, 2, 2, sharex=ax1, sharey=ax1)
+    #         ax2.imshow(self._regions, cmap="bone")
+    #         ax2.set_title('Multi-Otsu thresholding')
+    #         ax2.axis('off')
+    #         plt.show()
 
 
 
 class Cell():
 
-    def __init__(self, parent, coords):
+    def __init__(self, parent, coords, id_=None, punctum=None):
         self._parent = parent
-        self._id = f"{parent._id}:{len(parent):03d}"
+        if id_ is None:
+            self._id = f"{parent._id}:{len(parent):03d}"
+        else:
+            self._id = id_
         self._coords = coords
-        self.punctum = None
+        self.punctum = punctum
+
+    def as_json(self):
+        try:
+            p = self.punctum.as_json()
+        except AttributeError:
+            p = None
+
+        return json.dumps({"id": str(self._id),
+                           "coords": self._coords,
+                           "punctum": p})
 
     def __str__(self):
         return f"Cell {self._id}"
+
+    @classmethod
+    def from_json(cls, parent, key, data):
+        d = json.loads(data)
+        p = d["punctum"]
+        if p is not None:
+            p = Circle.from_json(p)
+        return cls(parent, d["coords"], d["id"], p)
 
     @property
     def img(self):

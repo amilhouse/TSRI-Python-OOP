@@ -7,6 +7,7 @@ shapes >> round_things
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+import json
 
 __all__ = ["Circle"]
 
@@ -21,12 +22,28 @@ class Shape():
         self.x += dx
         self.y += dy
 
+    def as_json(self):
+        return json.dumps({"x": self.x, "y": self.y})
+
+    @classmethod
+    def from_json(cls, data):
+        try:
+            return cls(**json.loads(data))
+        except TypeError:
+            return cls(**data)
+
+
 
 class Circle(Shape):
 
     def __init__(self, x=0, y=0, r=1):
         super().__init__(x=x, y=y)
         self._r = r
+
+    def as_json(self):
+        d = json.loads(super().as_json())
+        d["r"] = self.r
+        return d
 
     def magnify(self, dr):
         self.r = self.r*dr
